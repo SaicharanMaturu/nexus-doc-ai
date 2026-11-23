@@ -1,0 +1,26 @@
+services:
+  # Backend API Web Service
+  - type: web
+    name: nexus-doc-ai-backend
+    env: docker
+    dockerfilePath: backend/Dockerfile
+    plan: free
+    region: oregon
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: NEXUS_JWT_SECRET
+        generateValue: true
+
+  # Frontend Static Site
+  - type: web
+    name: nexus-doc-ai-frontend
+    env: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    plan: free
+    region: oregon
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
