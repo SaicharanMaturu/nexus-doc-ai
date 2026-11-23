@@ -71,5 +71,46 @@ def init_db():
     )
     """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        role TEXT DEFAULT 'lead_analyst',
+        organization TEXT DEFAULT 'Nexus AI Enterprise',
+        created_at TEXT NOT NULL,
+        last_login TEXT,
+        reset_token TEXT,
+        reset_token_expires TEXT
+    )
+    """)
+
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
+
+    # Seed default enterprise demonstration account if none exists
+    cursor.execute("SELECT COUNT(*) FROM users")
+    user_count = cursor.fetchone()[0]
+    if user_count == 0:
+        import uuid
+        from datetime import datetime
+        try:
+            from auth.security import hash_password
+            default_pw_hash = hash_password("NexusDocAI#2026!")
+            cursor.execute("""
+                INSERT INTO users (id, email, name, password_hash, role, organization, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                f"usr_{uuid.uuid4().hex[:10]}",
+                "analyst@nexusdoc.ai",
+                "Senior Document Auditor",
+                default_pw_hash,
+                "lead_analyst",
+                "Astraea Financial Operations",
+                datetime.now().isoformat()
+            ))
+        except Exception as e:
+            print(f"Warning: Could not seed default user: {e}")
+
     conn.commit()
     conn.close()

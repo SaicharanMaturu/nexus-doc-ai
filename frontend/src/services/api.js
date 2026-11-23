@@ -2,16 +2,159 @@ const API_BASE = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api`
   : '/api';
 
-export async function getDocuments() {
-  const res = await fetch(`${API_BASE}/documents`);
-  if (!res.ok) throw new Error('Failed to fetch documents');
+const TOKEN_KEY = 'nexus_auth_token';
+const USER_KEY = 'nexus_auth_user';
+
+export function getStoredToken() {
+  return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || null;
+}
+
+export function getStoredUser() {
+  try {
+    const raw = localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredSession(token, user, rememberMe = false) {
+  if (rememberMe) {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    sessionStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(USER_KEY);
+  } else {
+    sessionStorage.setItem(TOKEN_KEY, token);
+    sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  }
+}
+
+export function clearStoredSession() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(USER_KEY);
+}
+
+function getAuthHeaders(extraHeaders = {}) {
+  const headers = { ...extraHeaders };
+  const token = getStoredToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+async function handleResponse(res) {
+  if (res.status === 401) {
+    // If unauthorized, notify window for automatic session management
+    window.dispatchEvent(new CustomEvent('nexus:session-expired'));
+  }
+  if (!res.ok) {
+    let errorMsg = `Request failed (${res.status})`;
+    try {
+      const data = await res.json();
+      errorMsg = data.detail || data.message || errorMsg;
+    } catch {
+      // Use fallback error message
+    }
+    const err = new Error(errorMsg);
+    err.status = res.status;
+    throw err;
+  }
   return res.json();
 }
 
+// -----------------------------------------------------------------------------
+// Authentication APIs
+// -----------------------------------------------------------------------------
+
+export async function loginUser(email, password, rememberMe = false) {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, remember_me: rememberMe }),
+  });
+  const data = await handleResponse(res);
+  if (data?.session?.token && data?.user) {
+    setStoredSession(data.session.token, data.user, rememberMe);
+  }
+  return data;
+}
+
+export async function registerUser({ email, password, name, organization }) {
+  const res = await fetch(`${API_BASE}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, name, organization }),
+  });
+  const data = await handleResponse(res);
+  if (data?.session?.token && data?.user) {
+    setStoredSession(data.session.token, data.user, false);
+  }
+  return data;
+}
+
+export async function getCurrentUser() {
+  const token = getStoredToken();
+  if (!token) return null;
+  const res = await fetch(`${API_BASE}/auth/me`, {
+    headers: getAuthHeaders(),
+  });
+  return handleResponse(res);
+}
+
+export async function logoutUser() {
+  try {
+    await fetch(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+  } catch {
+    // Gracefully handle logout network issues
+  } finally {
+    clearStoredSession();
+  }
+  return { success: true };
+}
+
+export async function requestPasswordReset(email) {
+  const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  return handleResponse(res);
+}
+
+export async function confirmPasswordReset(email, token, newPassword) {
+  const res = await fetch(`${API_BASE}/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, token, new_password: newPassword }),
+  });
+  return handleResponse(res);
+}
+
+// -----------------------------------------------------------------------------
+// Existing Document & Verification APIs (Preserved & Protected)
+// -----------------------------------------------------------------------------
+
+export async function getDocuments() {
+  const res = await fetch(`${API_BASE}/documents`, {
+    headers: getAuthHeaders(),
+  });
+  return handleResponse(res);
+}
+
 export async function getDocumentById(id) {
-  const res = await fetch(`${API_BASE}/documents/${id}`);
-  if (!res.ok) throw new Error(`Failed to fetch document ${id}`);
-  return res.json();
+  const res = await fetch(`${API_BASE}/documents/${id}`, {
+    headers: getAuthHeaders(),
+  });
+  return handleResponse(res);
 }
 
 export async function uploadInvoiceFile(file) {
@@ -19,28 +162,27 @@ export async function uploadInvoiceFile(file) {
   formData.append('file', file);
   const res = await fetch(`${API_BASE}/upload`, {
     method: 'POST',
+    headers: getAuthHeaders(),
     body: formData,
   });
-  if (!res.ok) throw new Error('Upload failed');
-  return res.json();
+  return handleResponse(res);
 }
 
 export async function submitHumanVerification(id, updateData) {
   const res = await fetch(`${API_BASE}/documents/${id}/verify`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(updateData),
   });
-  if (!res.ok) throw new Error('Verification submission failed');
-  return res.json();
+  return handleResponse(res);
 }
 
 export async function runOcrComparison(id) {
   const res = await fetch(`${API_BASE}/documents/${id}/ocr-compare`, {
     method: 'POST',
+    headers: getAuthHeaders(),
   });
-  if (!res.ok) throw new Error('Dual OCR comparison failed');
-  return res.json();
+  return handleResponse(res);
 }
 
 export function getReportDownloadUrl(id) {
@@ -60,21 +202,23 @@ export function getTallyExportUrl(id) {
 }
 
 export async function getBenchmarkMetrics() {
-  const res = await fetch(`${API_BASE}/evaluation/benchmark`);
-  if (!res.ok) throw new Error('Failed to run benchmark');
-  return res.json();
+  const res = await fetch(`${API_BASE}/evaluation/benchmark`, {
+    headers: getAuthHeaders(),
+  });
+  return handleResponse(res);
 }
 
 export async function getDashboardMetrics() {
-  const res = await fetch(`${API_BASE}/metrics`);
-  if (!res.ok) throw new Error('Failed to fetch metrics');
-  return res.json();
+  const res = await fetch(`${API_BASE}/metrics`, {
+    headers: getAuthHeaders(),
+  });
+  return handleResponse(res);
 }
 
 export async function reseedSampleData() {
   const res = await fetch(`${API_BASE}/documents/seed`, {
     method: 'POST',
+    headers: getAuthHeaders(),
   });
-  if (!res.ok) throw new Error('Failed to seed preset invoices');
-  return res.json();
+  return handleResponse(res);
 }

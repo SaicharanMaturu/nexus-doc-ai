@@ -1,12 +1,15 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Cpu, UploadCloud, LayoutDashboard, Sun, Moon, ShieldCheck } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Cpu, UploadCloud, LayoutDashboard, Sun, Moon, ShieldCheck, LogIn, LogOut, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useTheme } from '../hooks/useTheme';
+import { useAuth } from '../context/AuthContext';
 
 export default function Navbar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+  const { user, isAuthenticated, logout } = useAuth();
   const isLight = theme === 'light';
 
   const navLinks = [
@@ -15,6 +18,11 @@ export default function Navbar() {
     { name: 'Upload Invoice', path: '/upload', icon: UploadCloud },
     { name: 'Verification Engine', path: '/workspace/DOC-ASTR-8841', icon: Cpu },
   ];
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login', { replace: true });
+  };
 
   const isActive = (path) => {
     if (path === '/') return location.pathname === '/';
@@ -113,10 +121,53 @@ export default function Navbar() {
           </motion.button>
 
           {/* Engine Status Badge */}
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] font-mono">
+          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[11px] font-mono">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span className="text-[var(--text-secondary)] font-medium">Models Active</span>
           </div>
+
+          {/* User Account / Authentication Status */}
+          {isAuthenticated && user ? (
+            <div className="flex items-center gap-2">
+              <div
+                className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-xs font-mono"
+                title={`Signed in as ${user.email}`}
+              >
+                <div className="w-5 h-5 rounded-md bg-[#ff3b2f]/10 border border-[#ff3b2f]/30 flex items-center justify-center text-[#ff3b2f] font-bold text-[10px]">
+                  {user.name ? user.name.charAt(0).toUpperCase() : 'A'}
+                </div>
+                <span className="text-[var(--text-primary)] font-semibold truncate max-w-[120px]">
+                  {user.name || user.email}
+                </span>
+              </div>
+
+              <motion.button
+                onClick={handleLogout}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className={`p-2 rounded-xl border text-xs transition-all duration-200 cursor-pointer ${
+                  isLight
+                    ? 'bg-white hover:bg-red-50 text-slate-700 hover:text-red-600 border-slate-200 hover:border-red-200'
+                    : 'bg-[#18181b] hover:bg-red-950/30 text-zinc-300 hover:text-red-400 border-[rgba(255,255,255,0.1)] hover:border-red-500/30'
+                }`}
+                title="Sign Out"
+              >
+                <LogOut className="w-4 h-4" />
+              </motion.button>
+            </div>
+          ) : (
+            <Link
+              to="/login"
+              className={`px-3.5 py-2 rounded-xl text-xs font-mono font-semibold flex items-center gap-1.5 border transition-all duration-200 ${
+                isLight
+                  ? 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300 hover:border-[#ff3b2f]/50'
+                  : 'bg-[#18181b] hover:bg-[#1f1f23] text-zinc-100 border-[rgba(255,255,255,0.15)] hover:border-[#ff3b2f]/50'
+              }`}
+            >
+              <LogIn className="w-3.5 h-3.5 text-[#ff3b2f]" />
+              <span>Sign In</span>
+            </Link>
+          )}
 
           {/* Direct CTA */}
           <Link

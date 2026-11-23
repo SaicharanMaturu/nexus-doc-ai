@@ -2,6 +2,10 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import MainLayout from './layouts/MainLayout';
 import WorkspaceLayout from './layouts/WorkspaceLayout';
+import ProtectedRoute from './components/ProtectedRoute';
+
+// Authentication Gateway Page
+import LoginPage from './pages/LoginPage';
 
 // 11 Complete Application Pages
 import LandingPage from './pages/LandingPage';
@@ -19,18 +23,44 @@ import VerificationReportPage from './pages/VerificationReportPage';
 export default function App() {
   return (
     <Routes>
+      {/* Standalone Authentication Gateway Routes */}
+      <Route path="/login" element={<LoginPage initialMode="login" />} />
+      <Route path="/register" element={<LoginPage initialMode="register" />} />
+      <Route path="/forgot-password" element={<LoginPage initialMode="forgot" />} />
+
+      {/* Main Application with Global Layout */}
       <Route element={<MainLayout />}>
-        {/* 1. Landing Page */}
+        {/* 1. Public Landing Page */}
         <Route path="/" element={<LandingPage />} />
 
-        {/* 2. Dashboard */}
-        <Route path="/dashboard" element={<DashboardPage />} />
+        {/* 2. Protected Dashboard */}
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
 
-        {/* 3. Invoice Upload */}
-        <Route path="/upload" element={<UploadPage />} />
+        {/* 3. Protected Invoice Upload */}
+        <Route
+          path="/upload"
+          element={
+            <ProtectedRoute>
+              <UploadPage />
+            </ProtectedRoute>
+          }
+        />
 
-        {/* Workspace Routes (4 through 11) */}
-        <Route element={<WorkspaceLayout />}>
+        {/* Protected Workspace Routes (4 through 11) */}
+        <Route
+          element={
+            <ProtectedRoute>
+              <WorkspaceLayout />
+            </ProtectedRoute>
+          }
+        >
           {/* 4. AI Processing Workspace */}
           <Route path="/workspace/:id" element={<WorkspaceOverviewPage />} />
           <Route path="/workspace" element={<Navigate to="/workspace/DOC-ASTR-8841" replace />} />

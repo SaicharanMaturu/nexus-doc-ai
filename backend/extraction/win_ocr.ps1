@@ -20,8 +20,8 @@ function AwaitTask($WinRtTask, $ResultType) {
 [Windows.Graphics.Imaging.BitmapDecoder, Windows.Graphics.Imaging, ContentType = WindowsRuntime] | Out-Null
 
 $resolvedPath = (Resolve-Path $ImagePath).Path
-$file = AwaitTask ([Windows.Storage.StorageFile]::GetFileFromPathAsync($resolvedPath)) ([Windows.Storage.StorageFile])
-$stream = AwaitTask ($file.OpenAsync([Windows.Storage.FileAccessMode]::Read)) ([Windows.Storage.Streams.IRandomAccessStream])
+$fileStream = [System.IO.File]::OpenRead($resolvedPath)
+$stream = [System.IO.WindowsRuntimeStreamExtensions]::AsRandomAccessStream($fileStream)
 $decoder = AwaitTask ([Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync($stream)) ([Windows.Graphics.Imaging.BitmapDecoder])
 $bitmap = AwaitTask ($decoder.GetSoftwareBitmapAsync()) ([Windows.Graphics.Imaging.SoftwareBitmap])
 

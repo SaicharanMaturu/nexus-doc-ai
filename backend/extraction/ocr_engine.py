@@ -39,8 +39,9 @@ def run_windows_media_ocr(image_path: str) -> Dict[str, Any]:
     (Windows.Media.Ocr.OcrEngine).
     Extracts actual optical text, line geometry, and word-level bounding boxes.
     """
-    if not os.path.exists(image_path):
-        return {"text": "", "lines": [], "success": False, "error": f"Image file not found: {image_path}"}
+    abs_image_path = str(Path(image_path).resolve())
+    if not os.path.exists(abs_image_path):
+        return {"text": "", "lines": [], "success": False, "error": f"Image file not found: {abs_image_path}"}
 
     try:
         cmd = [
@@ -49,7 +50,7 @@ def run_windows_media_ocr(image_path: str) -> Dict[str, Any]:
             "-NonInteractive",
             "-ExecutionPolicy", "Bypass",
             "-File", str(PS_SCRIPT_PATH),
-            "-ImagePath", str(image_path)
+            "-ImagePath", abs_image_path
         ]
         
         proc = subprocess.run(
@@ -69,10 +70,11 @@ def run_windows_media_ocr(image_path: str) -> Dict[str, Any]:
             }
 
         out_json = json.loads(proc.stdout.strip())
+        recognized_text = out_json.get("Text") or ""
         return {
-            "text": out_json.get("Text", ""),
+            "text": recognized_text,
             "lines": out_json.get("Lines", []),
-            "success": True,
+            "success": bool(recognized_text),
             "engine": "Windows.Media.Ocr (Native OS Hardware Accelerated)"
         }
     except Exception as e:
